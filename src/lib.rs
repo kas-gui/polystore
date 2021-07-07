@@ -102,8 +102,8 @@ impl<K: Eq + Hash> Store<K> {
     /// The value's type is inferred from the [`TaggedKey`].
     ///
     /// Returns `None` if no element matches `tag` or if the type `V` does not match the element.
-    pub fn get<V: 'static>(&self, key: &TaggedKey<K, V>) -> Option<&V> {
-        self.get_typed::<V>(key)
+    pub fn get_tagged<V: 'static>(&self, key: &TaggedKey<K, V>) -> Option<&V> {
+        self.get::<V>(key)
     }
 
     /// Returns a reference to the value corresponding to the key
@@ -111,7 +111,7 @@ impl<K: Eq + Hash> Store<K> {
     /// The value's type must be specified explicitly.
     ///
     /// Returns `None` if no element matches `key`. Panics on type mismatch.
-    pub fn get_typed<V: 'static>(&self, key: &K) -> Option<&V> {
+    pub fn get<V: 'static>(&self, key: &K) -> Option<&V> {
         if let Some(v) = self.0.get(key) {
             assert_type_id::<V>(v.0);
             let slice: &[u8] = &*v.1;
@@ -123,14 +123,14 @@ impl<K: Eq + Hash> Store<K> {
     }
 
     /// Returns a mutable reference to the value corresponding to the key
-    pub fn get_mut<V: 'static>(&mut self, key: &TaggedKey<K, V>) -> Option<&mut V> {
-        self.get_typed_mut::<V>(key)
+    pub fn get_tagged_mut<V: 'static>(&mut self, key: &TaggedKey<K, V>) -> Option<&mut V> {
+        self.get_mut::<V>(key)
     }
 
     /// Returns a mutable reference to the value corresponding to the key
     ///
     /// Returns `None` if no element matches `key`. Panics on type mismatch.
-    pub fn get_typed_mut<V: 'static>(&mut self, key: &K) -> Option<&mut V> {
+    pub fn get_mut<V: 'static>(&mut self, key: &K) -> Option<&mut V> {
         if let Some(v) = self.0.get_mut(key) {
             assert_type_id::<V>(v.0);
             let slice: &mut [u8] = &mut *v.1;
@@ -308,10 +308,10 @@ mod tests {
         if let Some(v) = store.get_mut(&k1) {
             *v = "another str";
         }
-        assert_eq!(store.get(&k1), Some(&"another str"));
+        assert_eq!(store.get_tagged(&k1), Some(&"another str"));
 
         let k2 = store.insert(2, "A String".to_string());
-        assert_eq!(store.get(&k2), Some(&"A String".to_string()));
+        assert_eq!(store.get_tagged(&k2), Some(&"A String".to_string()));
 
         assert!(store.contains_key(&k1));
         assert!(store.contains_key(&1));
@@ -322,14 +322,14 @@ mod tests {
     fn zero_sized() {
         let mut store = Store::new();
         let k = store.insert(1, ());
-        assert_eq!(store.get(&k), Some(&()));
+        assert_eq!(store.get_tagged(&k), Some(&()));
     }
 
     #[test]
     fn untyped_keys() {
         let mut store = Store::new();
         store.insert(1, ());
-        assert_eq!(store.get_typed(&1), Some(&()));
+        assert_eq!(store.get(&1), Some(&()));
     }
 
     #[test]
@@ -337,7 +337,7 @@ mod tests {
     fn incorrect_untyped_keys() {
         let mut store = Store::new();
         store.insert(1, ());
-        assert_eq!(store.get_typed(&1), Some(&1));
+        assert_eq!(store.get(&1), Some(&1));
     }
 
     #[test]
@@ -345,9 +345,9 @@ mod tests {
         let mut store = Store::new();
         let k = 1;
         *store.entry(k).or_insert(0) = 10;
-        assert_eq!(store.get_typed(&k), Some(&10));
+        assert_eq!(store.get(&k), Some(&10));
 
         *store.entry(k).or_insert(0) = 20;
-        assert_eq!(store.get_typed(&k), Some(&20));
+        assert_eq!(store.get(&k), Some(&20));
     }
 }
