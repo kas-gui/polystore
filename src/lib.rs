@@ -14,6 +14,15 @@ pub use std_hm::Keys;
 
 type Erased = (TypeId, Box<[u8]>);
 
+fn assert_type_id<V: 'static>(id: TypeId) {
+    assert_eq!(
+        id,
+        TypeId::of::<V>(),
+        "type V={} does not match type id",
+        type_name::<V>()
+    );
+}
+
 /// The polymorphic data store
 ///
 /// Internally this uses a `HashMap` with boxed values, thus performance is
@@ -101,15 +110,14 @@ impl<K: Eq + Hash> Store<K> {
     ///
     /// The value's type must be specified explicitly.
     ///
-    /// Returns `None` if no element matches `tag` or if the type `V` does not match the element.
+    /// Returns `None` if no element matches `key`. Panics on type mismatch.
     pub fn get_typed<V: 'static>(&self, key: &K) -> Option<&V> {
         if let Some(v) = self.0.get(key) {
-            if v.0 == TypeId::of::<V>() {
-                let slice: &[u8] = &*v.1;
-                debug_assert_eq!(slice.len(), size_of::<V>());
-                let p = slice.as_ptr() as *const u8 as *const V;
-                return Some(unsafe { &*p });
-            }
+            assert_type_id::<V>(v.0);
+            let slice: &[u8] = &*v.1;
+            debug_assert_eq!(slice.len(), size_of::<V>());
+            let p = slice.as_ptr() as *const u8 as *const V;
+            return Some(unsafe { &*p });
         }
         None
     }
@@ -121,15 +129,14 @@ impl<K: Eq + Hash> Store<K> {
 
     /// Returns a mutable reference to the value corresponding to the key
     ///
-    /// Returns `None` if no element matches `key` or if the type `V` does not match the element.
+    /// Returns `None` if no element matches `key`. Panics on type mismatch.
     pub fn get_typed_mut<V: 'static>(&mut self, key: &K) -> Option<&mut V> {
         if let Some(v) = self.0.get_mut(key) {
-            if v.0 == TypeId::of::<V>() {
-                let slice: &mut [u8] = &mut *v.1;
-                debug_assert_eq!(slice.len(), size_of::<V>());
-                let p = slice.as_mut_ptr() as *mut u8 as *mut V;
-                return Some(unsafe { &mut *p });
-            }
+            assert_type_id::<V>(v.0);
+            let slice: &mut [u8] = &mut *v.1;
+            debug_assert_eq!(slice.len(), size_of::<V>());
+            let p = slice.as_mut_ptr() as *mut u8 as *mut V;
+            return Some(unsafe { &mut *p });
         }
         None
     }
@@ -159,12 +166,7 @@ impl<K: Eq + Hash> Store<K> {
     /// Panics on type mismatch.
     pub fn remove_boxed<V: 'static>(&mut self, key: &TaggedKey<K, V>) -> Option<Box<V>> {
         self.0.remove(key).map(|v| {
-            assert_eq!(
-                v.0,
-                TypeId::of::<V>(),
-                "Store::remove_boxed: type V={} does not match type id",
-                type_name::<V>()
-            );
+            assert_type_id::<V>(v.0);
             unsafe {
                 let slice: &mut [u8] = &mut *Box::into_raw(v.1);
                 debug_assert_eq!(slice.len(), size_of::<V>());
@@ -219,12 +221,7 @@ impl<'a, K: 'a, V: 'static> OccupiedEntry<'a, K, V> {
     /// Panics on type mismatch.
     pub fn get(&self) -> &V {
         let v = self.0.get();
-        assert_eq!(
-            v.0,
-            TypeId::of::<V>(),
-            "OccupiedEntry::get: type V={} does not match type id",
-            type_name::<V>()
-        );
+        assert_type_id::<V>(v.0);
         let slice: &[u8] = &*v.1;
         debug_assert_eq!(slice.len(), size_of::<V>());
         let p = slice.as_ptr() as *const u8 as *const V;
@@ -236,12 +233,7 @@ impl<'a, K: 'a, V: 'static> OccupiedEntry<'a, K, V> {
     /// Panics on type mismatch.
     pub fn get_mut(&mut self) -> &mut V {
         let v = self.0.get_mut();
-        assert_eq!(
-            v.0,
-            TypeId::of::<V>(),
-            "OccupiedEntry::get_mut: type V={} does not match type id",
-            type_name::<V>()
-        );
+        assert_type_id::<V>(v.0);
         let slice: &mut [u8] = &mut *v.1;
         debug_assert_eq!(slice.len(), size_of::<V>());
         let p = slice.as_ptr() as *mut u8 as *mut V;
@@ -253,12 +245,7 @@ impl<'a, K: 'a, V: 'static> OccupiedEntry<'a, K, V> {
     /// Panics on type mismatch.
     pub fn into_mut(self) -> &'a mut V {
         let v = self.0.into_mut();
-        assert_eq!(
-            v.0,
-            TypeId::of::<V>(),
-            "OccupiedEntry::into_mut: type V={} does not match type id",
-            type_name::<V>()
-        );
+        assert_type_id::<V>(v.0);
         let slice: &mut [u8] = &mut *v.1;
         debug_assert_eq!(slice.len(), size_of::<V>());
         let p = slice.as_ptr() as *mut u8 as *mut V;
@@ -281,12 +268,7 @@ impl<'a, K: 'a, V: 'static> OccupiedEntry<'a, K, V> {
     /// Panics on type mismatch.
     pub fn remove_boxed(self) -> Box<V> {
         let v = self.0.remove();
-        assert_eq!(
-            v.0,
-            TypeId::of::<V>(),
-            "OccupiedEntry::remove_boxed: type V={} does not match type id",
-            type_name::<V>()
-        );
+        assert_type_id::<V>(v.0);
         unsafe {
             let slice: &mut [u8] = &mut *Box::into_raw(v.1);
             debug_assert_eq!(slice.len(), size_of::<V>());
@@ -341,6 +323,21 @@ mod tests {
         let mut store = Store::new();
         let k = store.insert(1, ());
         assert_eq!(store.get(&k), Some(&()));
+    }
+
+    #[test]
+    fn untyped_keys() {
+        let mut store = Store::new();
+        store.insert(1, ());
+        assert_eq!(store.get_typed(&1), Some(&()));
+    }
+
+    #[test]
+    #[should_panic]
+    fn incorrect_untyped_keys() {
+        let mut store = Store::new();
+        store.insert(1, ());
+        assert_eq!(store.get_typed(&1), Some(&1));
     }
 
     #[test]
