@@ -93,8 +93,7 @@ impl<K: Eq + Hash> Store<K> {
             if v.0 == TypeId::of::<V>() {
                 let slice: &[u8] = &*v.1;
                 debug_assert_eq!(slice.len(), size_of::<V>());
-                // TODO: what about zero-sized V?
-                let p = &slice[0] as *const u8 as *const V;
+                let p = slice.as_ptr() as *const u8 as *const V;
                 return Some(unsafe { &*p });
             }
         }
@@ -114,8 +113,7 @@ impl<K: Eq + Hash> Store<K> {
             if v.0 == TypeId::of::<V>() {
                 let slice: &mut [u8] = &mut *v.1;
                 debug_assert_eq!(slice.len(), size_of::<V>());
-                // TODO: what about zero-sized V?
-                let p = &mut slice[0] as *mut u8 as *mut V;
+                let p = slice.as_mut_ptr() as *mut u8 as *mut V;
                 return Some(unsafe { &mut *p });
             }
         }
@@ -132,14 +130,13 @@ impl<K: Eq + Hash> Store<K> {
     where
         K: Clone,
     {
-        // TODO: zero-sized? Alignment/
-        // Box and erase type
-        let boxed = unsafe {
-            let raw = Box::into_raw(Box::new(value)) as *mut u8;
+        let boxed = Box::new(value);
+        let type_erased = unsafe {
+            let raw = Box::into_raw(boxed) as *mut u8;
             let slice = slice::from_raw_parts_mut(raw, size_of::<V>());
             Box::<[u8]>::from_raw(slice)
         };
-        self.0.insert(key.clone(), (TypeId::of::<V>(), boxed));
+        self.0.insert(key.clone(), (TypeId::of::<V>(), type_erased));
         TaggedKey::new(key)
     }
 }
@@ -164,5 +161,12 @@ mod tests {
         assert!(store.contains_key(&k1));
         assert!(store.contains_key(&1));
         assert!(!store.contains_key(&3));
+    }
+
+    #[test]
+    fn zero_sized() {
+        let mut store = Store::new();
+        let k = store.insert(1, ());
+        assert_eq!(store.get(&k), Some(&()));
     }
 }
