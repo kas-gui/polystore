@@ -1,0 +1,14 @@
+[package]
+name = "polystore"
+version = "0.1.0"
+authors = ["Diggory Hardy <git@dhardy.name>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/kas-gui/polystore"
+documentation = "https://docs.rs/polystore"
+description = """
+Polymorphic data store
+"""
+keywords = ["poly", "polymorphic"]
+categories = ["data-structures"]
