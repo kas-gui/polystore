@@ -139,12 +139,33 @@ impl<K: Eq + Hash, S: BuildHasher> Store<K, S> {
     ///
     /// Unlike [`HashMap`] this does not return any displaced old value since
     /// the type of any such value is unknown.
+    #[inline]
     pub fn insert<V: 'static>(&mut self, key: K, value: V) -> TaggedKey<K, V>
     where
         K: Clone,
     {
-        self.0.insert(key.clone(), Box::new(value));
+        self.insert_boxed(key, Box::new(value))
+    }
+
+    /// Inserts a key and boxed value pair
+    ///
+    /// Returns the corresponding [`TaggedKey`] for convenience.
+    ///
+    /// Unlike [`HashMap`] this does not return any displaced old value since
+    /// the type of any such value is unknown.
+    pub fn insert_boxed<V: 'static>(&mut self, key: K, value: Box<V>) -> TaggedKey<K, V>
+    where
+        K: Clone,
+    {
+        self.0.insert(key.clone(), value);
         TaggedKey::new(key)
+    }
+
+    /// Removes and returns a value, if present
+    ///
+    /// Panics on type mismatch.
+    pub fn remove<V: 'static>(&mut self, key: &TaggedKey<K, V>) -> Option<V> {
+        self.remove_boxed(key).map(|v| *v)
     }
 
     /// Removes and returns a value, if present
