@@ -1,6 +1,7 @@
 //! Polymorphic data store (collection)
 
 // TODO: no_std?
+#![feature(min_specialization)]
 
 use std::any::{Any, TypeId};
 use std::collections::hash_map as std_hm;
@@ -12,8 +13,20 @@ use std::ops::Deref;
 pub use std_hm::Keys;
 
 /// Wrapper around Any supporting Drop
-pub trait MaybeDrop: Any {}
-impl<T: Any + ?Sized> MaybeDrop for T {}
+pub trait MaybeDrop: Any {
+    /// Call drop on self, if any
+    fn drop(&mut self);
+}
+impl<T: Any + ?Sized> MaybeDrop for T {
+    default fn drop(&mut self) {}
+}
+
+// Rust doesn't (yet) support this: https://github.com/rust-lang/rust/issues/46893
+impl<T: Drop + Any + ?Sized> MaybeDrop for T {
+    fn drop(&mut self) {
+        Drop::drop(self)
+    }
+}
 
 // Copied from Rust's std library (impl for dyn Any)
 impl dyn MaybeDrop {
