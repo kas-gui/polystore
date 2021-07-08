@@ -14,10 +14,16 @@ pub use std_hm::Keys;
 ///
 /// Internally this uses a `HashMap` with boxed values, thus performance is
 /// much like that of `HashMap`.
+///
+/// # Warning
+///
+/// **Warning:** values stored in the map will not have their destructor
+/// ([`Drop::drop`]) run when the map is destroyed. This is not currently
+/// fixable (`min_specialization` +
+/// <https://github.com/rust-lang/rust/issues/46893> may be sufficient).
 // TODO: this is a map... rename?
 #[derive(Debug)]
 // TODO: faster hash
-// FIXME: we cannot Drop values!
 pub struct Store<K>(HashMap<K, Box<dyn Any>>);
 
 impl<K> Default for Store<K> {
