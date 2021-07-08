@@ -5,10 +5,78 @@
 use std::any::{Any, TypeId};
 use std::collections::hash_map as std_hm;
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::Deref;
 pub use std_hm::Keys;
+
+/// Wrapper around Any supporting Drop
+pub trait MaybeDrop: Any {}
+impl<T: Any + ?Sized> MaybeDrop for T {}
+
+// Copied from Rust's std library (impl for dyn Any)
+impl dyn MaybeDrop {
+    /// Returns `true` if the boxed type is the same as `T`.
+    #[inline]
+    pub fn is<T: Any>(&self) -> bool {
+        // Get `TypeId` of the type this function is instantiated with.
+        let t = TypeId::of::<T>();
+
+        // Get `TypeId` of the type in the trait object (`self`).
+        let concrete = self.type_id();
+
+        // Compare both `TypeId`s on equality.
+        t == concrete
+    }
+
+    /// Returns some reference to the boxed value if it is of type `T`, or `None` if it isn't.
+    #[inline]
+    pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
+        if self.is::<T>() {
+            // SAFETY: just checked whether we are pointing to the correct type, and we can rely on
+            // that check for memory safety because we have implemented Any for all types; no other
+            // impls can exist as they would conflict with our impl.
+            unsafe { Some(&*(self as *const dyn MaybeDrop as *const T)) }
+        } else {
+            None
+        }
+    }
+
+    /// Returns some mutable reference to the boxed value if it is of type `T`, or `None` if it isn't.
+    #[inline]
+    pub fn downcast_mut<T: Any>(&mut self) -> Option<&mut T> {
+        if self.is::<T>() {
+            // SAFETY: just checked whether we are pointing to the correct type, and we can rely on
+            // that check for memory safety because we have implemented Any for all types; no other
+            // impls can exist as they would conflict with our impl.
+            unsafe { Some(&mut *(self as *mut dyn MaybeDrop as *mut T)) }
+        } else {
+            None
+        }
+    }
+}
+
+// Copied from Rust's std library (impl for dyn Any)
+impl fmt::Debug for dyn MaybeDrop {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MaybeDrop").finish_non_exhaustive()
+    }
+}
+
+// Copied from Rust's std library (impl for Box<dyn Any>)
+#[inline]
+/// Attempt to downcast the box to a concrete type.
+fn downcast_box<T: Any>(b: Box<dyn MaybeDrop>) -> Result<Box<T>, Box<dyn MaybeDrop>> {
+    if b.is::<T>() {
+        unsafe {
+            let raw: *mut dyn MaybeDrop = Box::into_raw(b);
+            Ok(Box::from_raw(raw as *mut T))
+        }
+    } else {
+        Err(b)
+    }
+}
 
 /// The polymorphic data store
 ///
@@ -18,7 +86,7 @@ pub use std_hm::Keys;
 #[derive(Debug)]
 // TODO: faster hash
 // FIXME: we cannot Drop values!
-pub struct Store<K>(HashMap<K, Box<dyn Any>>);
+pub struct Store<K>(HashMap<K, Box<dyn MaybeDrop>>);
 
 impl<K> Default for Store<K> {
     fn default() -> Self {
@@ -53,7 +121,7 @@ impl<K> Store<K> {
     /// Returns an iterator over all keys in arbitrary order
     ///
     /// These are *not* tagged keys; only the bare key is stored.
-    pub fn keys(&self) -> Keys<K, Box<dyn Any>> {
+    pub fn keys(&self) -> Keys<K, Box<dyn MaybeDrop>> {
         self.0.keys()
     }
 
@@ -132,7 +200,7 @@ impl<K: Eq + Hash> Store<K> {
     ///
     /// Panics on type mismatch.
     pub fn remove_boxed<V: 'static>(&mut self, key: &TaggedKey<K, V>) -> Option<Box<V>> {
-        self.0.remove(key).and_then(|v| v.downcast().ok())
+        self.0.remove(key).and_then(|v| downcast_box(v).ok())
     }
 
     /// Get `key`'s entry for in-place manipulation
@@ -172,7 +240,7 @@ impl<'a, K: 'a, V: 'static> Entry<'a, K, V> {
 
 /// An occupied entry
 pub struct OccupiedEntry<'a, K: 'a, V: 'static>(
-    std_hm::OccupiedEntry<'a, K, Box<dyn Any>>,
+    std_hm::OccupiedEntry<'a, K, Box<dyn MaybeDrop>>,
     PhantomData<V>,
 );
 impl<'a, K: 'a, V: 'static> OccupiedEntry<'a, K, V> {
@@ -198,7 +266,7 @@ impl<'a, K: 'a, V: 'static> OccupiedEntry<'a, K, V> {
     }
 
     /// Sets the value of the entry
-    pub fn insert(&mut self, value: V) -> Box<dyn Any> {
+    pub fn insert(&mut self, value: V) -> Box<dyn MaybeDrop> {
         self.0.insert(Box::new(value))
     }
 
@@ -206,13 +274,13 @@ impl<'a, K: 'a, V: 'static> OccupiedEntry<'a, K, V> {
     ///
     /// Panics on type mismatch.
     pub fn remove_boxed(self) -> Box<V> {
-        self.0.remove().downcast().unwrap()
+        downcast_box(self.0.remove()).unwrap()
     }
 }
 
 /// A vacant entry
 pub struct VacantEntry<'a, K: 'a, V: 'static>(
-    std_hm::VacantEntry<'a, K, Box<dyn Any>>,
+    std_hm::VacantEntry<'a, K, Box<dyn MaybeDrop>>,
     PhantomData<V>,
 );
 impl<'a, K: 'a, V: 'static> VacantEntry<'a, K, V> {
