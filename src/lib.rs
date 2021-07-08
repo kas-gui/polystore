@@ -4,7 +4,6 @@
 
 use std::any::{Any, TypeId};
 use std::collections::hash_map as std_hm;
-use std::collections::HashMap;
 use std::hash::{BuildHasher, Hash};
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -25,14 +24,13 @@ pub use std_hm::Keys;
 /// ([`Drop::drop`]) run when the map is destroyed. This is not currently
 /// fixable (`min_specialization` +
 /// <https://github.com/rust-lang/rust/issues/46893> may be sufficient).
-// TODO: this is a map... rename?
 #[derive(Debug)]
 // TODO: faster hash
-pub struct Store<K, S>(HashMap<K, Box<dyn Any>, S>);
+pub struct HashMap<K, S>(std_hm::HashMap<K, Box<dyn Any>, S>);
 
-impl<K, S: Default> Default for Store<K, S> {
+impl<K, S: Default> Default for HashMap<K, S> {
     fn default() -> Self {
-        Store::with_hasher(Default::default())
+        HashMap::with_hasher(Default::default())
     }
 }
 
@@ -51,17 +49,17 @@ impl<K, V> Deref for TaggedKey<K, V> {
     }
 }
 
-impl<K> Store<K, std_hm::RandomState> {
+impl<K> HashMap<K, std_hm::RandomState> {
     /// Construct a new store
     pub fn new() -> Self {
         Default::default()
     }
 }
 
-impl<K, S> Store<K, S> {
+impl<K, S> HashMap<K, S> {
     /// Construct a new store with the given hash bulider
     pub fn with_hasher(hash_builder: S) -> Self {
-        Store(HashMap::with_hasher(hash_builder))
+        HashMap(std_hm::HashMap::with_hasher(hash_builder))
     }
 
     /// Return's a reference to the map's [`std::hash::HashBuilder`]
@@ -92,7 +90,7 @@ impl<K, S> Store<K, S> {
     }
 }
 
-impl<K: Eq + Hash, S: BuildHasher> Store<K, S> {
+impl<K: Eq + Hash, S: BuildHasher> HashMap<K, S> {
     /// Checks whether a value matching the specified `key` exists
     pub fn contains_key(&self, key: &K) -> bool {
         self.0.contains_key(key)
@@ -269,7 +267,7 @@ mod tests {
 
     #[test]
     fn insert_and_access() {
-        let mut store = Store::new();
+        let mut store = HashMap::new();
 
         let k1 = store.insert(1, "A static str");
         if let Some(v) = store.get_mut(&k1) {
@@ -287,14 +285,14 @@ mod tests {
 
     #[test]
     fn zero_sized() {
-        let mut store = Store::new();
+        let mut store = HashMap::new();
         let k = store.insert(1, ());
         assert_eq!(store.get_tagged(&k), Some(&()));
     }
 
     #[test]
     fn untyped_keys() {
-        let mut store = Store::new();
+        let mut store = HashMap::new();
         store.insert(1, ());
         assert_eq!(store.get(&1), Some(&()));
     }
@@ -302,14 +300,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn incorrect_untyped_keys() {
-        let mut store = Store::new();
+        let mut store = HashMap::new();
         store.insert(1, ());
         assert_eq!(store.get(&1), Some(&1));
     }
 
     #[test]
     fn entry_api() {
-        let mut store = Store::new();
+        let mut store = HashMap::new();
         let k = 1;
         *store.entry(k).or_insert(0) = 10;
         assert_eq!(store.get(&k), Some(&10));
