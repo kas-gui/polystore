@@ -1,6 +1,6 @@
 //! Polymorphic data store (collection)
 
-// TODO: no_std?
+// TODO: support other collection types? If so, we can support `no_std` too.
 
 use std::any::{Any, TypeId};
 use std::collections::hash_map as std_hm;
