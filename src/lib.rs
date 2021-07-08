@@ -5,7 +5,7 @@
 use std::any::{Any, TypeId};
 use std::collections::hash_map as std_hm;
 use std::collections::HashMap;
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 use std::marker::PhantomData;
 use std::ops::Deref;
 pub use std_hm::Keys;
@@ -14,6 +14,10 @@ pub use std_hm::Keys;
 ///
 /// Internally this uses a `HashMap` with boxed values, thus performance is
 /// much like that of `HashMap`.
+///
+/// Note: [`HashMap`]'s capacity reservation API is excluded. There is no
+/// fundamental reason for this, other than each stored value requiring an
+/// allocation (boxing) anyway.
 ///
 /// # Warning
 ///
@@ -24,11 +28,11 @@ pub use std_hm::Keys;
 // TODO: this is a map... rename?
 #[derive(Debug)]
 // TODO: faster hash
-pub struct Store<K>(HashMap<K, Box<dyn Any>>);
+pub struct Store<K, S>(HashMap<K, Box<dyn Any>, S>);
 
-impl<K> Default for Store<K> {
+impl<K, S: Default> Default for Store<K, S> {
     fn default() -> Self {
-        Store::new()
+        Store::with_hasher(Default::default())
     }
 }
 
@@ -47,14 +51,23 @@ impl<K, V> Deref for TaggedKey<K, V> {
     }
 }
 
-impl<K> Store<K> {
+impl<K> Store<K, std_hm::RandomState> {
     /// Construct a new store
     pub fn new() -> Self {
-        Store(HashMap::new())
+        Default::default()
+    }
+}
+
+impl<K, S> Store<K, S> {
+    /// Construct a new store with the given hash bulider
+    pub fn with_hasher(hash_builder: S) -> Self {
+        Store(HashMap::with_hasher(hash_builder))
     }
 
-    // TODO: other ctors: with_capacity, with_hasher, ..., capacity, reserve, shrink_to_fit?
-    // TODO: access to the hasher?
+    /// Return's a reference to the map's [`std::hash::HashBuilder`]
+    pub fn hasher(&self) -> &S {
+        self.0.hasher()
+    }
 
     /// Returns an iterator over all keys in arbitrary order
     ///
@@ -79,7 +92,7 @@ impl<K> Store<K> {
     }
 }
 
-impl<K: Eq + Hash> Store<K> {
+impl<K: Eq + Hash, S: BuildHasher> Store<K, S> {
     /// Checks whether a value matching the specified `key` exists
     pub fn contains_key(&self, key: &K) -> bool {
         self.0.contains_key(key)
