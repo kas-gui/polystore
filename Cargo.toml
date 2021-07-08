@@ -13,6 +13,12 @@ Polymorphic data store
 keywords = ["poly", "polymorphic"]
 categories = ["data-structures"]
 
+[package.metadata.docs.rs]
+features = ["fxhash"]
+rustdoc-args = ["--cfg", "doc_cfg"]
+# To build locally:
+# RUSTDOCFLAGS="--cfg doc_cfg" cargo +nightly doc --features=fxhash --no-deps --open
+
 [features]
 # Support FxHashMap
 fxhash = ["rustc-hash"]

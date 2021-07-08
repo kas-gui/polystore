@@ -2,6 +2,8 @@
 
 // TODO: support other collection types? If so, we can support `no_std` too.
 
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
+
 use std::any::{Any, TypeId};
 use std::collections::hash_map as std_hm;
 use std::hash::{BuildHasher, Hash};
@@ -9,7 +11,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 pub use std_hm::Keys;
 
-/// The polymorphic data store
+/// Polymorphic hash map
 ///
 /// Internally this uses a `HashMap` with boxed values, thus performance is
 /// much like that of `HashMap`.
@@ -27,6 +29,8 @@ pub use std_hm::Keys;
 #[derive(Debug)]
 pub struct HashMap<K, S>(std_hm::HashMap<K, Box<dyn Any>, S>);
 
+/// Polymorphic hash map using fxhash hasher
+#[cfg_attr(doc_cfg, doc(cfg(feature = "fxhash")))]
 #[cfg(feature = "fxhash")]
 pub type FxHashMap<K> = HashMap<K, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
 
@@ -64,7 +68,7 @@ impl<K, S> HashMap<K, S> {
         HashMap(std_hm::HashMap::with_hasher(hash_builder))
     }
 
-    /// Return's a reference to the map's [`std::hash::HashBuilder`]
+    /// Return's a reference to the map's [`BuildHasher`]
     pub fn hasher(&self) -> &S {
         self.0.hasher()
     }
