@@ -25,8 +25,10 @@ pub use std_hm::Keys;
 /// fixable (`min_specialization` +
 /// <https://github.com/rust-lang/rust/issues/46893> may be sufficient).
 #[derive(Debug)]
-// TODO: faster hash
 pub struct HashMap<K, S>(std_hm::HashMap<K, Box<dyn Any>, S>);
+
+#[cfg(feature = "fxhash")]
+pub type FxHashMap<K> = HashMap<K, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
 
 impl<K, S: Default> Default for HashMap<K, S> {
     fn default() -> Self {
